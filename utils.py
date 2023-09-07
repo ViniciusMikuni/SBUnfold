@@ -13,7 +13,8 @@ line_style = {
     'SBUnfold':'-',
     'cINN':'-',
     'OmniFold (step 1)':'-',
-    'Reconstructed':'-'
+    'Reconstructed':'-',
+    'FPCD': '-',
     
 }
 
@@ -23,7 +24,8 @@ colors = {
     'cINN':'#2ca25f',
     'OmniFold (step 1)':'#ffb347',
     #'OmniFold (step 1) 1k':'#ff8547',
-    'Reconstructed':'red'
+    'Reconstructed':'red',
+    'FPCD': '#e6550d',
 }
 
 
@@ -63,17 +65,20 @@ def SetGrid(ratio=True):
     return fig,gs
 
 
-def GetEMD(ref,array,weights_arr,nboot = 100):
+def GetEMD(ref,array,weights_arr,binning,nboot = 100):
     from scipy.stats import wasserstein_distance
     ds = []
+    hists = []
     for _ in range(nboot):
         #ref_boot = np.random.choice(ref,ref.shape[0])
         arr_idx = np.random.choice(range(array.shape[0]),array.shape[0])
         array_boot = array[arr_idx]
         w_boot = weights_arr[arr_idx]
         ds.append(wasserstein_distance(ref,array_boot,v_weights=w_boot))
-    
-    return np.mean(ds), np.std(ds)
+        hists.append(np.histogram(array_boot,weights=w_boot,bins=binning,density=True)[0])
+
+    unc = np.std(hists,0)
+    return np.mean(ds), np.std(ds),unc
     # mse = np.square(ref-array)/ref
     # return np.sum(mse)
 
@@ -142,7 +147,7 @@ def HistRoutine(feed_dict,xlabel='',ylabel='',reference_name='Truth',logy=False,
 
         if triangle:
             print(plot)
-            d,err = GetEMD(feed_dict[reference_name],feed_dict[plot],weights[plot])
+            d,err,uncertainty = GetEMD(feed_dict[reference_name],feed_dict[plot],weights[plot],binning)
             print("EMD distance is: {}+-{}".format(d,err))
             d = get_triangle_distance(dist,reference_hist,binning)
             print("Triangular distance is: {}".format(d))
@@ -152,26 +157,32 @@ def HistRoutine(feed_dict,xlabel='',ylabel='',reference_name='Truth',logy=False,
             
         if plot_ratio:
             if reference_name!=plot:
-                ratio = np.ma.divide(dist,reference_hist).filled(0)                
-                ax1.plot(xaxis,ratio,color=colors[plot],marker='+',ms=8,lw=0,markerfacecolor='none',markeredgewidth=3)
-                if uncertainty is not None:
-                    for ibin in range(len(binning)-1):
-                        xup = binning[ibin+1]
-                        xlow = binning[ibin]
-                        ax1.fill_between(np.array([xlow,xup]),
-                                         uncertainty[ibin],-uncertainty[ibin], alpha=0.3,color='k')    
+                ratio = np.ma.divide(dist,reference_hist).filled(0)
+                uncertainty = np.ma.divide(uncertainty,reference_hist).filled(0)
+                #ax1.plot(xaxis,ratio,color=colors[plot],marker='+',ms=8,lw=0,markerfacecolor='none',markeredgewidth=3)
+                ax1.errorbar(xaxis,ratio,yerr = uncertainty,color=colors[plot],
+                            marker='+',ms=8,ls='none',markerfacecolor='none',markeredgewidth=3)
+                
+                # if uncertainty is not None:
+                #     for ibin in range(len(binning)-1):
+                #         xup = binning[ibin+1]
+                #         xlow = binning[ibin]
+                #         ax1.fill_between(np.array([xlow,xup]),
+                #                          uncertainty[ibin],-uncertainty[ibin], alpha=0.3,color='k')    
     if logy:
         ax0.set_yscale('log')
+        ax0.set_ylim(1e-3,10*maxy)
+    else:
+        ax0.set_ylim(0,1.3*maxy)
 
     ax0.legend(loc=label_loc,fontsize=16,ncol=2)
-    ax0.set_ylim(0,1.3*maxy)
     if plot_ratio:
         FormatFig(xlabel = "", ylabel = ylabel,ax0=ax0) 
         plt.ylabel('Ratio to Truth')
         plt.axhline(y=1.0, color='r', linestyle='-',linewidth=1)
         # plt.axhline(y=10, color='r', linestyle='--',linewidth=1)
         # plt.axhline(y=-10, color='r', linestyle='--',linewidth=1)
-        plt.ylim([0.5,1.5])
+        plt.ylim([0.0,2.0])
         plt.xlabel(xlabel)
     else:
         FormatFig(xlabel = xlabel, ylabel = ylabel,ax0=ax0) 
@@ -325,3 +336,6 @@ def overlaid_corner(samples_list, sample_labels,name=''):
     )
     plt.savefig("plots/corner_{}.pdf".format(name))
     #plt.close()
+
+
+        

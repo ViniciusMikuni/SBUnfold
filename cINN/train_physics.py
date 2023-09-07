@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import time
 import energyflow as ef
-from sklearn.preprocessing import StandardScaler
+
 
 from cflow import ConditionalFlow
 from MoINN.modules.subnetworks import DenseSubNet
@@ -85,5 +85,5 @@ np.save("inn_Pythia26",unfold_pythia)
 #herwig
 
 detector = tf.constant(test_sim_herwig, dtype=tf.float32)
-unfold_pythia = cflow.sample(test_sim_herwig.shape[0],[detector])
-np.save("inn_Herwig",unfold_pythia)
+unfold_herwig = cflow.sample(test_sim_herwig.shape[0],[detector])
+np.save("inn_Herwig",unfold_herwig)

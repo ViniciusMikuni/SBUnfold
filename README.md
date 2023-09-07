@@ -27,3 +27,18 @@ The results presented in the paper can be reproduced by calling:
 python plot.py
 ```
 where both plots and metrics are calculated
+
+
+## Citation
+
+```
+@article{Diefenbacher:2023wec,
+    author = "Diefenbacher, Sascha and Liu, Guan-Horng and Mikuni, Vinicius and Nachman, Benjamin and Nie, Weili",
+    title = {{Improving Generative Model-based Unfolding with Schr\"odinger Bridges}},
+    eprint = "2308.12351",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    month = "8",
+    year = "2023"
+}
+```
