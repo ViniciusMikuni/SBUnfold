@@ -9,7 +9,6 @@ mplhep==0.3.26
 numpy==1.23.5
 pandas==1.5.2
 prefetch_generator==1.0.3
-PyYAML==6.0
 PyYAML==6.0.1
 Requests==2.31.0
 rich==13.5.2

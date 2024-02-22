@@ -10,6 +10,8 @@ import matplotlib.lines as mlines
 
 line_style = {
     'Truth':'dotted',
+    'Truth (Pythia)':'dotted',
+    'Truth (Herwig)':'dotted',
     'SBUnfold':'-',
     'cINN':'-',
     'OmniFold (step 1)':'-',
@@ -20,12 +22,14 @@ line_style = {
 
 colors = {
     'Truth':'black',
-    'SBUnfold':'#7570b3',
-    'cINN':'#2ca25f',
-    'OmniFold (step 1)':'#ffb347',
+    'Truth (Pythia)':'black',
+    'Truth (Herwig)':'black',
+    'SBUnfold':'#7b3294',
+    'cINN':'#c2a5cf',
+    'OmniFold (step 1)':'#a6dba0',
     #'OmniFold (step 1) 1k':'#ff8547',
-    'Reconstructed':'red',
-    'FPCD': '#e6550d',
+    'Reconstructed':'#008837',
+    'FPCD': '#abd9e9',
 }
 
 
@@ -111,12 +115,27 @@ def WriteText(xpos,ypos,text,ax0):
              verticalalignment='center',
              transform = ax0.transAxes, fontsize=25, fontweight='bold')
 
-def get_triangle_distance(x,y,binning):
+def get_triangle_distance(x,y,x_norm,y_norm,binning,ntrials = 100):
     dist = 0
     w = binning[1:] - binning[:-1]
     for ib in range(len(x)):
-        dist+=0.5*w[ib]*(x[ib] - y[ib])**2/(x[ib] + y[ib]) if x[ib] + y[ib] >0 else 0.0
-    return dist*1e3
+        dist+=0.5*w[ib]*(x[ib]*x_norm - y[ib]*y_norm)**2/(x[ib]*x_norm + y[ib]*y_norm) if x[ib]*x_norm + y[ib]*y_norm >0 else 0.0
+
+    x_plus = x + np.sqrt(x)
+    x_minus = x - np.sqrt(x)
+    y_plus = y + np.sqrt(y)
+    y_minus = y - np.sqrt(y)
+    
+    results = []
+    for trial in range(ntrials):
+        x_ = np.random.uniform(low=x_minus, high=x_plus)
+        y_ = np.random.uniform(low=y_minus, high=y_plus)
+        d_ = 0.0
+        for ib in range(len(x)):
+            d_+=0.5*w[ib]*(x_[ib]*x_norm - y_[ib]*y_norm)**2/(x_[ib]*x_norm + y_[ib]*y_norm) if x_[ib]*x_norm + y_[ib]*y_norm >0 else 0.0
+            results.append(d_)
+        
+    return dist*1e3, np.std(results)*1e3
 
 def HistRoutine(feed_dict,xlabel='',ylabel='',reference_name='Truth',logy=False,binning=None,label_loc='best',plot_ratio=True,weights=None,uncertainty=None,triangle=True):
     assert reference_name in feed_dict.keys(), "ERROR: Don't know the reference distribution"
@@ -136,21 +155,27 @@ def HistRoutine(feed_dict,xlabel='',ylabel='',reference_name='Truth',logy=False,
         
     xaxis = [(binning[i] + binning[i+1])/2.0 for i in range(len(binning)-1)]
     reference_hist,_ = np.histogram(feed_dict[reference_name],bins=binning,density=True)
+    reference_hist_counts,_ = np.histogram(feed_dict[reference_name],bins=binning)
 
     maxy = 0    
     for ip,plot in enumerate(feed_dict.keys()):
         plot_style = ref_plot if reference_name == plot else other_plots
         if weights is not None:
             dist,_,_=ax0.hist(feed_dict[plot],bins=binning,label=plot,linestyle=line_style[plot],color=colors[plot],density=True,weights=weights[plot],**plot_style)
+            dist_counts,_ = np.histogram(feed_dict[plot],bins=binning,weights=weights[plot])
         else:
             dist,_,_=ax0.hist(feed_dict[plot],bins=binning,label=plot,linestyle=line_style[plot],color=colors[plot],density=True,**plot_style)
+            dist_counts,_ = np.histogram(feed_dict[plot],bins=binning)
 
         if triangle:
+            if reference_name==plot: continue
             print(plot)
             d,err,uncertainty = GetEMD(feed_dict[reference_name],feed_dict[plot],weights[plot],binning)
-            print("EMD distance is: {}+-{}".format(d,err))
-            d = get_triangle_distance(dist,reference_hist,binning)
-            print("Triangular distance is: {}".format(d))
+            # print("EMD distance is: {}+-{}".format(10*d,10*err))
+            dist_norm = np.abs(binning[1] - binning[0])*np.sum(dist_counts)
+            ref_norm = np.abs(binning[1] - binning[0])*np.sum(reference_hist_counts)
+            d,err = get_triangle_distance(dist_counts,reference_hist_counts,1.0/dist_norm,1.0/ref_norm,binning)
+            print("Triangular distance is: {}+-{}".format(d, err))
             
         if np.max(dist) > maxy:
             maxy = np.max(dist)
@@ -179,7 +204,7 @@ def HistRoutine(feed_dict,xlabel='',ylabel='',reference_name='Truth',logy=False,
     if plot_ratio:
         FormatFig(xlabel = "", ylabel = ylabel,ax0=ax0) 
         plt.ylabel('Ratio to Truth')
-        plt.axhline(y=1.0, color='r', linestyle='-',linewidth=1)
+        plt.axhline(y=1.0, color='black', linestyle='-',linewidth=1)
         # plt.axhline(y=10, color='r', linestyle='--',linewidth=1)
         # plt.axhline(y=-10, color='r', linestyle='--',linewidth=1)
         plt.ylim([0.0,2.0])
@@ -331,7 +356,7 @@ def overlaid_corner(samples_list, sample_labels,name=''):
             mlines.Line2D([], [], color=colors[i], label=sample_labels[i])
             for i in range(n)
         ],
-        fontsize=20, frameon=False,
+        fontsize=24, frameon=False,
         bbox_to_anchor=(1, ndim), loc="upper right"
     )
     plt.savefig("plots/corner_{}.pdf".format(name))

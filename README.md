@@ -22,11 +22,11 @@ python train_physics.py
 
 # Plotting
 
-The results presented in the paper can be reproduced by calling:
+The results presented in the paper can be reproduced after training each individual unfolding algorithm  by calling:
 ```
 python plot.py
 ```
-where both plots and metrics are calculated
+where both plots and metrics are calculated. 
 
 
 ## Citation

@@ -10,17 +10,15 @@ import utils
 utils.SetStyle()
 
 
-
-
 parser = argparse.ArgumentParser()
-#parser.add_argument('--niter', type=int,default=60000, help='Iteration to load the trained model from SB')
 parser.add_argument('--plot-folder', default='plots', help='Folder to save results')
 parser.add_argument('--ndata', default=600000, type=int, help='Number of data points used in the unfolding')
-parser.add_argument('--data-name', default='Herwig', help='Name of the sample to unfold')
+parser.add_argument('--data-name', default='Herwig', help='Name of the pseudo-data sample used for unfolding')
 parser.add_argument('--nbins', default=30,type=int, help='Number of bins to use')
 opt = parser.parse_args()
 
-
+#Name of the truth distribution
+truth_name = 'Truth ({})'.format('Pythia' if 'Pythia' in opt.data_name else 'Herwig')
 nbins = opt.nbins
 binning = [
     np.linspace(1,60,nbins),
@@ -35,10 +33,12 @@ binning = [
 if not os.path.isdir(opt.plot_folder):
     os.makedirs(opt.plot_folder)
 
-
-gen = np.load("SBUnfold/clean_{}.npy".format(opt.data_name))[:opt.ndata]
-reco = np.load("SBUnfold/corrupt_{}.npy".format(opt.data_name))[:opt.ndata]
-unfolded = np.load("SBUnfold/recon_{}.npy".format(opt.data_name))[:opt.ndata]
+try:
+    gen = np.load("SBUnfold/clean_{}.npy".format(opt.data_name))[:opt.ndata]
+    reco = np.load("SBUnfold/corrupt_{}.npy".format(opt.data_name))[:opt.ndata]
+    unfolded = np.load("SBUnfold/recon_{}.npy".format(opt.data_name))[:opt.ndata]
+except:
+    print("ERROR: Files to load not found. Run the SBUnfold training first")
 
 gen = utils.ReversePreprocessing(gen,'gen_features.json','JSON')
 reco = utils.ReversePreprocessing(reco,'sim_features.json','JSON')
@@ -48,25 +48,32 @@ unfolded = utils.ReversePreprocessing(unfolded,'gen_features.json','JSON')
 print("Loaded file with {} events".format(gen.shape[0]))
 
 #Loading cINN training
-
-cINN = np.load("cINN/inn_{}.npy".format(opt.data_name))[:opt.ndata]
-cINN = utils.ReversePreprocessing(cINN,'gen_features.json','JSON')
+try:
+    cINN = np.load("cINN/inn_{}.npy".format(opt.data_name))[:opt.ndata]
+    cINN = utils.ReversePreprocessing(cINN,'gen_features.json','JSON')
+except:
+    print("ERROR: Files to load not found. Run the cINN training first")
 
 # Loading the standard diffusion training
-
-fpcd = np.load("diffusion/diffusion_{}.npy".format(opt.data_name))[:opt.ndata]
-fpcd = utils.ReversePreprocessing(fpcd,'gen_features.json','JSON')
+try:
+    fpcd = np.load("diffusion/diffusion_{}.npy".format(opt.data_name))[:opt.ndata]
+    fpcd = utils.ReversePreprocessing(fpcd,'gen_features.json','JSON')
+except:
+    print("ERROR: Files to load not found. Run the Diffusion training first")
 
 #Loading OmniFold training
 
-if opt.ndata == 1000:
-    omnifold = np.load("omnifold/omnifold_Pythia26_1000.npy")[:opt.ndata]
-    omnifold = utils.ReversePreprocessing(omnifold,'gen_features.json','JSON')
-    weights = np.load("omnifold/weights_data_1000.npy")[:opt.ndata]
-else:
-    omnifold = np.load("omnifold/omnifold_Pythia26_1000000.npy")[:opt.ndata]
-    omnifold = utils.ReversePreprocessing(omnifold,'gen_features.json','JSON')
-    weights = np.load("omnifold/weights_data_1000000.npy")[:opt.ndata]
+try:
+    if opt.ndata == 1000:
+        omnifold = np.load("omnifold/omnifold_Pythia26_1000.npy")[:opt.ndata]
+        omnifold = utils.ReversePreprocessing(omnifold,'gen_features.json','JSON')
+        weights = np.load("omnifold/weights_data_1000.npy")[:opt.ndata]
+    else:
+        omnifold = np.load("omnifold/omnifold_Pythia26_1000000.npy")[:opt.ndata]
+        omnifold = utils.ReversePreprocessing(omnifold,'gen_features.json','JSON')
+        weights = np.load("omnifold/weights_data_1000000.npy")[:opt.ndata]
+except:
+    print("ERROR: Files to load not found. Run the OmniFold training first")
 
 
 
@@ -74,13 +81,13 @@ if 'Pythia' in opt.data_name:
     #Make the corner plots only for pythia -> pythia
     utils.overlaid_corner(
         [gen,reco,unfolded],
-        ["Truth", "Reconstructed", "SBUnfold"],
+        ["Truth (Pythia)", "Reconstructed", "SBUnfold"],
         name = 'SBUnfold'
     )
 
     utils.overlaid_corner(
         [gen,reco,cINN],
-        ["Truth", "Reconstructed", "cINN"],
+        ["Truth (Pythia)", "Reconstructed", "cINN"],
         name = 'cINN'
     )
 
@@ -90,25 +97,26 @@ feature_names = ["Jet Mass [GeV]","Jet Width", "$n_{constituents}$",r"$ln\rho$",
 logy = [False,True,False,False,True,False]
 locs = ['best','best','best','upper left','best','upper left']
 for feat in range(nfeatures):
-    print(feat)
+    print("Plotting {}".format(feature_names[feat]))
     feed_dict = {
-        'Truth': gen[:,feat],
+        truth_name: gen[:,feat],
         'Reconstructed': reco[:,feat],
         'cINN':cINN[:,feat],
         'SBUnfold': unfolded[:,feat],
     }
 
     weight_dict = {
-        'Truth': np.ones(gen.shape[0]),
+        truth_name: np.ones(gen.shape[0]),
         'Reconstructed': np.ones(reco.shape[0]),
         'cINN':np.ones(cINN.shape[0]),
         'SBUnfold': np.ones(unfolded.shape[0]),
         }
 
     if 'Pythia' in opt.data_name:
+        pass
         #Omnifold not needed but diffusion is loaded
-        feed_dict['FPCD'] = fpcd[:,feat]
-        weight_dict['FPCD'] = np.ones(fpcd.shape[0])
+        #feed_dict['FPCD'] = fpcd[:,feat]
+        #weight_dict['FPCD'] = np.ones(fpcd.shape[0])
     else:
         feed_dict['OmniFold (step 1)'] = omnifold[:,feat]
         weight_dict['OmniFold (step 1)'] =weights
@@ -118,7 +126,9 @@ for feat in range(nfeatures):
                                 label_loc= locs[feat],
                                 xlabel=feature_names[feat], ylabel= 'Normalized entries',
                                 binning = binning[feat],
-                                logy=logy[feat],)
+                                logy=logy[feat],
+                                reference_name=truth_name,
+                                )
     #ax0.set_xscale("log")
     fig.savefig('{}/{}_{}_{}.pdf'.format(opt.plot_folder,opt.data_name,feat,opt.ndata))
 
